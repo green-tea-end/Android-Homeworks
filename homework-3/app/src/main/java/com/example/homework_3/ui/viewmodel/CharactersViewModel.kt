@@ -19,20 +19,30 @@ class CharactersViewModel(
     var uiState by mutableStateOf(CharactersUiState())
         private set
 
-    private var characters by mutableStateOf(emptyList<Character>())
+    private var allCharacters by mutableStateOf(emptyList<Character>())
+    private var loadedCharactersById by mutableStateOf(mapOf<String, Character>())
+
+    init {
+        loadCharacters()
+    }
 
     fun onQueryChange(query: String) {
         uiState = uiState.copy(query = query, errorMessage = null)
 
         searchJob?.cancel()
         if (query.isNotBlank()) {
+            uiState = uiState.copy(isLoading = true)
+
             searchJob = viewModelScope.launch {
                 delay(500)
                 if (query == uiState.query) {
                     performSearch(query)
+                } else {
+                    uiState = uiState.copy(isLoading = false)
                 }
             }
         } else {
+            uiState = uiState.copy(isLoading = true)
             loadCharacters()
         }
     }
@@ -40,10 +50,10 @@ class CharactersViewModel(
     private var searchJob: Job? = null
 
     private suspend fun performSearch(query: String) {
-        uiState = uiState.copy(isLoading = true, errorMessage = null)
         try {
             val result = repository.searchCharacters(query)
-            characters = result
+            allCharacters = result
+            updateCharactersMap(result)
             uiState = uiState.copy(isLoading = false)
         } catch (ex: Exception) {
             uiState = uiState.copy(
@@ -68,8 +78,14 @@ class CharactersViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(isLoading = true, errorMessage = null)
             try {
-                val result = repository.getCharacters(page)
-                characters = result
+                val results = mutableListOf<Character>()
+                for (currentPage in 1..2) {
+                    val pageResult = repository.getCharacters(currentPage)
+                    results.addAll(pageResult)
+                }
+
+                allCharacters = results
+                updateCharactersMap(results)
                 uiState = uiState.copy(isLoading = false, currentPage = page)
             } catch (ex: Exception) {
                 uiState = uiState.copy(
@@ -80,13 +96,81 @@ class CharactersViewModel(
         }
     }
 
-    val visibleCharacters: List<Character>
-        get() = when (uiState.filter) {
-            CharacterFilter.ALL -> characters
-            CharacterFilter.FAVOURITES -> characters.filter { it.id in uiState.favourites }
+    private fun updateCharactersMap(newCharacters: List<Character>) {
+        val newMap = loadedCharactersById.toMutableMap()
+        newCharacters.forEach { character ->
+            newMap[character.id] = character
+        }
+        loadedCharactersById = newMap
+    }
+
+    fun loadCharacter(id: String) {
+        val existing = loadedCharactersById[id]
+        if (existing != null) {
+            uiState = uiState.copy(
+                selectedCharacter = existing,
+                isLoadingDetail = false,
+                errorDetail = null
+            )
+            return
         }
 
-    init {
-        loadCharacters()
+        viewModelScope.launch {
+            uiState = uiState.copy(
+                selectedCharacter = null,
+                isLoadingDetail = true,
+                errorDetail = null
+            )
+
+            try {
+                val character = repository.getCharacterByUrl("https://swapi.dev/api/people/$id/")
+                if (character != null) {
+                    updateCharactersMap(listOf(character))
+                    uiState = uiState.copy(
+                        selectedCharacter = character,
+                        isLoadingDetail = false,
+                        errorDetail = null
+                    )
+                } else {
+                    uiState = uiState.copy(
+                        selectedCharacter = null,
+                        isLoadingDetail = false,
+                        errorDetail = "Character not found"
+                    )
+                }
+            } catch (ex: Exception) {
+                uiState = uiState.copy(
+                    selectedCharacter = null,
+                    isLoadingDetail = false,
+                    errorDetail = "Failed to load character: ${ex.message}"
+                )
+            }
+        }
     }
+
+    fun clearDetailState() {
+        uiState = uiState.copy(
+            selectedCharacter = null,
+            isLoadingDetail = false,
+            errorDetail = null
+        )
+    }
+
+    val visibleCharacters: List<Character>
+        get() {
+            val byQuery = if (uiState.query.isBlank()) {
+                allCharacters
+            } else {
+                allCharacters.filter { character ->
+                    character.name.contains(uiState.query, ignoreCase = true)
+                }
+            }
+
+            return when (uiState.filter) {
+                CharacterFilter.ALL -> byQuery
+                CharacterFilter.FAVOURITES -> byQuery.filter { character ->
+                    character.id in uiState.favourites
+                }
+            }
+        }
 }

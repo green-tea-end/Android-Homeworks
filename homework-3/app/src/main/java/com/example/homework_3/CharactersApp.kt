@@ -1,6 +1,7 @@
 package com.example.homework_3
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -10,6 +11,7 @@ import androidx.navigation.navArgument
 import com.example.homework_3.ui.screen.CharacterListScreen
 import com.example.homework_3.ui.screen.CharacterDetailScreen
 import com.example.homework_3.ui.viewmodel.CharactersViewModel
+import androidx.compose.runtime.DisposableEffect
 
 sealed class CharactersRoute(val route: String) {
     object List : CharactersRoute("list")
@@ -38,6 +40,7 @@ fun CharactersApp() {
                 onToggleFavourite = viewModel::onToggleFavourite,
                 onRefresh = { viewModel.loadCharacters() },
                 onCharacterClick = { characterId ->
+                    viewModel.loadCharacter(characterId)
                     navController.navigate(CharactersRoute.Detail.createRoute(characterId))
                 }
             )
@@ -51,14 +54,23 @@ fun CharactersApp() {
         ) { backStackEntry ->
             val characterId = backStackEntry.arguments?.getString(CharactersRoute.Detail.ARG_ID) ?: ""
 
-            val character = viewModel.visibleCharacters.find { it.id == characterId }
-            val isFavourite = characterId in state.favourites
+            LaunchedEffect(characterId) {
+                if (characterId.isNotBlank()) {
+                    viewModel.loadCharacter(characterId)
+                }
+            }
+
+            DisposableEffect(Unit) {
+                onDispose {
+                    viewModel.clearDetailState()
+                }
+            }
 
             CharacterDetailScreen(
-                character = character,
-                isFavourite = isFavourite,
-                isLoading = false,
-                errorMessage = null,
+                character = state.selectedCharacter,
+                isFavourite = characterId in state.favourites,
+                isLoading = state.isLoadingDetail,
+                errorMessage = state.errorDetail,
                 onToggleFavourite = { viewModel.onToggleFavourite(characterId) },
                 onBack = { navController.popBackStack() }
             )

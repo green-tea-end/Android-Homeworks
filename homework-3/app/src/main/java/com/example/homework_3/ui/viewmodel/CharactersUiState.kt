@@ -1,5 +1,6 @@
 package com.example.homework_3.ui.viewmodel
 
+import com.example.homework_3.model.Character
 import com.example.homework_3.model.CharacterFilter
 
 data class CharactersUiState(
@@ -8,5 +9,8 @@ data class CharactersUiState(
     val favourites: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val currentPage: Int = 1
+    val currentPage: Int = 1,
+    val selectedCharacter: Character? = null,
+    val isLoadingDetail: Boolean = false,
+    val errorDetail: String? = null
 )
