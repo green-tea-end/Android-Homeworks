@@ -13,6 +13,7 @@ fun QuizApp() {
             onStartClick = { holder.startQuiz() }
         )
     }
+<<<<<<< Updated upstream
 
     else if (state.isQuizFinished) {
         ResultScreen(
@@ -28,12 +29,33 @@ fun QuizApp() {
 
     else {
         val currentQuestion = holder.currentQuestion()
+=======
+    // UI получает все данные из state
+    else if (state.isQuizFinished) {
+        ResultScreen(
+            score = state.score,
+            total = state.totalQuestions,
+            percentage = state.percentage,
+            comment = state.resultComment,
+            onRestart = { holder.restartQuiz() }
+        )
+    }
+    else {
+        val currentQuestion = state.currentQuestion
+>>>>>>> Stashed changes
         if (currentQuestion != null) {
             QuestionScreen(
                 question = currentQuestion,
                 currentIndex = state.currentQuestionIndex,
+<<<<<<< Updated upstream
                 totalQuestions = QuizRepository.questions.size,
                 selectedAnswerIndex = state.selectedAnswerIndex,
+=======
+                totalQuestions = state.totalQuestions,
+                selectedAnswerIndex = state.selectedAnswerIndex,
+                progress = state.progress,
+                buttonText = state.buttonText,
+>>>>>>> Stashed changes
                 onAnswerSelected = { index -> holder.selectAnswer(index) },
                 onNextClicked = { holder.nextQuestion() },
                 isNextEnabled = state.selectedAnswerIndex != null

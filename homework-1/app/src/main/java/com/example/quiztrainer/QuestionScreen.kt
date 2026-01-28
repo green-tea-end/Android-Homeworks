@@ -9,12 +9,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+<<<<<<< Updated upstream
+=======
+// Прогресс и текст кнопки вычисляются в StateHolder и передаются сюда
+>>>>>>> Stashed changes
 @Composable
 fun QuestionScreen(
     question: Question,
     currentIndex: Int,
     totalQuestions: Int,
     selectedAnswerIndex: Int?,
+<<<<<<< Updated upstream
+=======
+    progress: Float,
+    buttonText: String,
+>>>>>>> Stashed changes
     onAnswerSelected: (Int) -> Unit,
     onNextClicked: () -> Unit,
     isNextEnabled: Boolean,
@@ -36,8 +45,14 @@ fun QuestionScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Прогресс бар
+<<<<<<< Updated upstream
         LinearProgressIndicator(
             progress = { (currentIndex + 1).toFloat() / totalQuestions },
+=======
+        // Получаем готовое значение progress из параметров
+        LinearProgressIndicator(
+            progress = { progress },
+>>>>>>> Stashed changes
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -85,7 +100,11 @@ fun QuestionScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
+<<<<<<< Updated upstream
         // Кнопка
+=======
+        // Кнопка получает готовый текст buttonText из параметров
+>>>>>>> Stashed changes
         Button(
             onClick = onNextClicked,
             modifier = Modifier
@@ -94,7 +113,11 @@ fun QuestionScreen(
             enabled = isNextEnabled
         ) {
             Text(
+<<<<<<< Updated upstream
                 text = if (currentIndex < totalQuestions - 1) "Дальше" else "Завершить",
+=======
+                text = buttonText,
+>>>>>>> Stashed changes
                 fontSize = 18.sp
             )
         }
