@@ -9,31 +9,38 @@ import com.example.homework_2.model.Calculation
 data class SplitUiState(
     val totalInput: String = "",
     val peopleInput: String = "",
-    val calculations: List<Calculation> = emptyList()
+    val calculations: List<Calculation> = emptyList(),
+    val isInputValid: Boolean = false,
 )
 
 class SplitViewModel : ViewModel() {
     var uiState by mutableStateOf(SplitUiState())
         private set
 
+    private fun updateInputValidity() {
+        val total = uiState.totalInput.toDoubleOrNull()
+        val people = uiState.peopleInput.toIntOrNull()
+        val isValid = total != null && total > 0 && people != null && people > 0
+
+        uiState = uiState.copy(isInputValid = isValid)
+    }
     fun onTotalChange(total: String) {
         uiState = uiState.copy(totalInput = total)
+        updateInputValidity()
     }
 
     fun onPeopleChange(people: String) {
         uiState = uiState.copy(peopleInput = people)
+        updateInputValidity()
     }
 
-    val isInputValid: Boolean
-        get() {
-            val total = uiState.totalInput.toDoubleOrNull()
-            val people = uiState.peopleInput.toIntOrNull()
-            return total != null && total > 0 && people != null && people > 0
-        }
+    fun createCalculation(): Calculation? {
+        val total = uiState.totalInput.toDoubleOrNull()
+        val people = uiState.peopleInput.toIntOrNull()
 
-    fun createCalculation(): Calculation {
-        val total = uiState.totalInput.toDouble()
-        val people = uiState.peopleInput.toInt()
+        if (total == null || total <= 0 || people == null || people <= 0) {
+            return null
+        }
 
         val newCalculation = Calculation(
             totalAmount = total,
@@ -43,9 +50,7 @@ class SplitViewModel : ViewModel() {
         val updatedCalculations = listOf(newCalculation) + uiState.calculations.take(4)
 
         uiState = uiState.copy(
-            calculations = updatedCalculations,
-            totalInput = "",
-            peopleInput = ""
+            calculations = updatedCalculations
         )
 
         return newCalculation
@@ -56,6 +61,10 @@ class SplitViewModel : ViewModel() {
     }
 
     fun resetForNewCalculation() {
-        uiState = SplitUiState()
+        uiState = uiState.copy(
+            totalInput = "",
+            peopleInput = "",
+            isInputValid = false
+        )
     }
 }

@@ -45,7 +45,11 @@ fun SplitMateApp() {
                 onPeopleChange = viewModel::onPeopleChange,
                 onCalculate = {
                     val calculation = viewModel.createCalculation()
-                    navController.navigate(SplitRoute.Result.createRoute(calculation.id))
+
+                    if (calculation != null) {
+                        navController.navigate(SplitRoute.Result.createRoute(calculation.id))
+                    }
+
                 }
             )
         }
@@ -69,8 +73,10 @@ fun SplitMateApp() {
                     },
                     onNewCalculation = {
                         viewModel.resetForNewCalculation()
-                        navController.navigate(SplitRoute.Welcome.route) {
-                            popUpTo(0)
+                        navController.navigate(SplitRoute.Input.route) {
+                            popUpTo(SplitRoute.Input.route) {
+                                inclusive = true
+                            }
                         }
                     }
                 )

@@ -50,12 +50,7 @@ fun InputScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = state.totalInput.isNotEmpty() &&
-                        state.peopleInput.isNotEmpty() &&
-                        state.totalInput.toDoubleOrNull() != null &&
-                        state.totalInput.toDouble() > 0 &&
-                        state.peopleInput.toIntOrNull() != null &&
-                        state.peopleInput.toInt() > 0
+                enabled = state.isInputValid
             ) {
                 Text("Рассчитать")
             }
