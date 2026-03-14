@@ -5,15 +5,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import com.example.homework_3.data.CharactersRepository
 import com.example.homework_3.model.Character
 import com.example.homework_3.model.CharacterFilter
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class CharactersViewModel(
-    private val repository: CharactersRepository = CharactersRepository()
+@HiltViewModel
+class CharactersViewModel @Inject constructor(
+    private val repository: CharactersRepository
 ) : ViewModel() {
 
     var uiState by mutableStateOf(CharactersUiState())
@@ -21,9 +24,28 @@ class CharactersViewModel(
 
     private var allCharacters by mutableStateOf(emptyList<Character>())
     private var loadedCharactersById by mutableStateOf(mapOf<String, Character>())
+    private var favoritesItems by mutableStateOf(emptyList<Character>())
+    private var searchJob: Job? = null
 
     init {
         loadCharacters()
+        loadFavorites()
+    }
+
+    private fun loadFavorites() {
+        viewModelScope.launch {
+            try {
+                val favs = repository.getFavorites()
+                favoritesItems = favs
+                uiState = uiState.copy(
+                    favourites = favs.map { it.id }.toSet()
+                )
+            } catch (ex: Exception) {
+                uiState = uiState.copy(
+                    errorMessage = "Не удалось загрузить избранное: ${ex.message}"
+                )
+            }
+        }
     }
 
     fun onQueryChange(query: String) {
@@ -47,8 +69,6 @@ class CharactersViewModel(
         }
     }
 
-    private var searchJob: Job? = null
-
     private suspend fun performSearch(query: String) {
         try {
             val result = repository.searchCharacters(query)
@@ -68,10 +88,28 @@ class CharactersViewModel(
     }
 
     fun onToggleFavourite(id: String) {
-        val favourites = uiState.favourites
-        uiState = uiState.copy(
-            favourites = if (id in favourites) favourites - id else favourites + id
-        )
+        viewModelScope.launch {
+            val currentFavs = favoritesItems
+            val currentIds = uiState.favourites
+
+            if (id in currentIds) {
+                repository.removeFavorite(id)
+                favoritesItems = currentFavs.filterNot { it.id == id }
+                uiState = uiState.copy(favourites = currentIds - id)
+            } else {
+                val character = allCharacters.firstOrNull { it.id == id }
+                    ?: loadedCharactersById[id]
+
+                if (character == null) {
+                    uiState = uiState.copy(errorMessage = "Не удалось добавить в избранное")
+                    return@launch
+                }
+
+                repository.addFavorite(character)
+                favoritesItems = listOf(character) + currentFavs
+                uiState = uiState.copy(favourites = currentIds + id)
+            }
+        }
     }
 
     fun loadCharacters(page: Int = 1) {
@@ -168,8 +206,8 @@ class CharactersViewModel(
 
             return when (uiState.filter) {
                 CharacterFilter.ALL -> byQuery
-                CharacterFilter.FAVOURITES -> byQuery.filter { character ->
-                    character.id in uiState.favourites
+                CharacterFilter.FAVOURITES -> favoritesItems.filter { fav ->
+                    byQuery.any { it.id == fav.id }
                 }
             }
         }
