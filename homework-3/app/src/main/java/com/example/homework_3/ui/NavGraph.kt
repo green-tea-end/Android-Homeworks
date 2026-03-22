@@ -40,7 +40,6 @@ fun NavGraph() {
                 onToggleFavourite = viewModel::onToggleFavourite,
                 onRefresh = { viewModel.loadCharacters() },
                 onCharacterClick = { characterId ->
-                    viewModel.loadCharacter(characterId)
                     navController.navigate(CharactersRoute.Detail.createRoute(characterId))
                 }
             )

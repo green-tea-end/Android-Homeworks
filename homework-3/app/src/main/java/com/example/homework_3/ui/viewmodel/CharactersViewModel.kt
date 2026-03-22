@@ -112,7 +112,7 @@ class CharactersViewModel @Inject constructor(
         }
     }
 
-    fun loadCharacters(page: Int = 1) {
+    fun loadCharacters() {
         viewModelScope.launch {
             uiState = uiState.copy(isLoading = true, errorMessage = null)
             try {
@@ -124,7 +124,7 @@ class CharactersViewModel @Inject constructor(
 
                 allCharacters = results
                 updateCharactersMap(results)
-                uiState = uiState.copy(isLoading = false, currentPage = page)
+                uiState = uiState.copy(isLoading = false)
             } catch (ex: Exception) {
                 uiState = uiState.copy(
                     isLoading = false,
@@ -206,8 +206,14 @@ class CharactersViewModel @Inject constructor(
 
             return when (uiState.filter) {
                 CharacterFilter.ALL -> byQuery
-                CharacterFilter.FAVOURITES -> favoritesItems.filter { fav ->
-                    byQuery.any { it.id == fav.id }
+                CharacterFilter.FAVOURITES -> {
+                    if (uiState.query.isBlank()) {
+                        favoritesItems
+                    } else {
+                        favoritesItems.filter { fav ->
+                            fav.name.contains(uiState.query, ignoreCase = true)
+                        }
+                    }
                 }
             }
         }

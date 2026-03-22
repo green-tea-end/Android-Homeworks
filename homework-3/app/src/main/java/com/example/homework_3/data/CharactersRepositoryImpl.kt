@@ -28,6 +28,7 @@ class CharactersRepositoryImpl @Inject constructor(
         try {
             api.getCharacterByUrl(url).toDomain()
         } catch (e: Exception) {
+            android.util.Log.e("CharactersRepository", "Error fetching character by url: $url", e)
             null
         }
     }

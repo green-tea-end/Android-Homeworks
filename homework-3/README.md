@@ -1,37 +1,45 @@
 # Приложение на любом открытом API
+## Домашнее задание 5 - Тестирование
 
 - **ФИО:** Лисицына Алёна Алексеевна
 - **Группа:** Б9123-09.03.03 ПИКД (1 подгруппа)
 - **API: SWAPI** (Star Wars API) - информация о персонажах Star Wars
 - **Как запустить:** просто собрать проект, API бесплатный без ключа
-- CharactersApp.kt больше не используется
 - Хотелось бы оценку 5, но сомневаюсь, что дотяну, поэтому стремлюсь к 4
 
-# Что храним в Room
-- **Таблица:** favorite_character
-- **Сущность:** FavoriteCharacterEntity
+## Выполненные тесты
 
-- **Поля и их назначения:**
-  - id - Уникальный идентификатор персонажа
-  - name - Имя персонажа
-  - gender - Пол
-  - birthYear - Год рождения
-  - height - Рост
-  - mass - Вес
-  - url - Ссылка на полную информацию в API
-  - addedAt - Временная метка добавления в избранное
+### Юнит-тесты (8 шт)
+Файл: `CharactersViewModelTest.kt`
+- обновление query и очистка ошибки (`onQueryChange updates query and clear error`)
+- очистка поиска загружает всех персонажей (`clear search query loads all characters`)
+- успешная загрузка данных (`search success updates visibleCharacter and calls repository`)
+- ошибка загрузки (`load characters error sets error message and stops loading`)
+- корректное начальное состояние экрана (`initial state is correct`)
+- retry после ошибки (`retry after error clears error and loads characters`)
+- пустой результат поиска даёт Empty (`search with no results returns empty list`)
+- повторное добавление в избранное не создаёт дубль (`adding same character to favourites does not create duplicate`)
 
-- **Сценарий:** Избранное (Favourites). Пользователь может добавлять
-персонажей в избранное. 
-Список избранных сохраняется в локальную базу данных Room
-и не теряется после перезапуска приложения.
+### Интеграционные тесты (5 шт)
+#### Data-слой
+Файл: `FavoriteCharacterDaoTest.kt`
+- после записи в Room данные корректно читаются повторно (`insert_AndGetAll_returnsItemsOrderedByAddedAtDesc`)
 
-# Как проверить работу Room
-- Запустить приложение.
-- В списке персонажей нажать на звёздочку у любого персонажа для добавление в избранное.
-- Закрыть приложение.
-- Снова открыть приложение.
-- Переключиться на Favourites — персонаж останется в списке избранных.
+#### UI-тесты
+Файл: `CharacterListScreenTest.kt`
+- переход на детали открывает экран для нужного id (`click_on_character_navigates_to_detail_screen`)
+- отображение корректного состояния экрана после загрузки данных (`after_loading_displays_character_list_correctly`)
+- retry() инициирует новую попытку запроса (`retry_initiates_new_request_after_error`)
+- состояние после ошибки и повторной загрузки переходит корректно (`state_transitions_correctly_from_error_to_success_after_retry`)
+
+### Нетривиальные тесты (6 шт)
+Из списка задания покрыты:
+- повторное добавление в избранное не создаёт дубль
+- пустой результат поиска даёт Empty
+- переход на детали открывает экран для нужного id
+- после записи в Room данные корректно читаются повторно
+- retry() инициирует новую попытку запроса
+- состояние после ошибки и повторной загрузки переходит корректно
 
 ## Скриншоты
 ### Экран загрузки

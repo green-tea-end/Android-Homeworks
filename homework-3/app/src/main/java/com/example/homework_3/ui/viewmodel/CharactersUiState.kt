@@ -9,7 +9,6 @@ data class CharactersUiState(
     val favourites: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val currentPage: Int = 1,
     val selectedCharacter: Character? = null,
     val isLoadingDetail: Boolean = false,
     val errorDetail: String? = null
