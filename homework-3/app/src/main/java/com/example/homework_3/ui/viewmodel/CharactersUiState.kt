@@ -7,9 +7,7 @@ data class CharactersUiState(
     val query: String = "",
     val filter: CharacterFilter = CharacterFilter.ALL,
     val favourites: Set<String> = emptySet(),
+    val visibleCharacters: List<Character> = emptyList(),
     val isLoading: Boolean = false,
-    val errorMessage: String? = null,
-    val selectedCharacter: Character? = null,
-    val isLoadingDetail: Boolean = false,
-    val errorDetail: String? = null
+    val errorMessage: String? = null
 )

@@ -3,6 +3,8 @@ package com.example.homework_3.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -25,7 +27,8 @@ sealed class CharactersRoute(val route: String) {
 fun NavGraph() {
     val navController = rememberNavController()
     val viewModel: CharactersViewModel = hiltViewModel()
-    val state = viewModel.uiState
+    val uiState by viewModel.uiState.collectAsState()
+    val detailState by viewModel.detailState.collectAsState()
 
     NavHost(
         navController = navController,
@@ -33,12 +36,7 @@ fun NavGraph() {
     ) {
         composable(CharactersRoute.List.route) {
             CharacterListScreen(
-                state = state,
-                characters = viewModel.visibleCharacters,
-                onSearchChange = viewModel::onQueryChange,
-                onFilterChange = viewModel::onFilterChange,
-                onToggleFavourite = viewModel::onToggleFavourite,
-                onRefresh = { viewModel.loadCharacters() },
+                viewModel = viewModel,
                 onCharacterClick = { characterId ->
                     navController.navigate(CharactersRoute.Detail.createRoute(characterId))
                 }
@@ -66,10 +64,10 @@ fun NavGraph() {
             }
 
             CharacterDetailScreen(
-                character = state.selectedCharacter,
-                isFavourite = characterId in state.favourites,
-                isLoading = state.isLoadingDetail,
-                errorMessage = state.errorDetail,
+                character = detailState.character,
+                isFavourite = characterId in uiState.favourites,
+                isLoading = detailState.isLoading,
+                errorMessage = detailState.error,
                 onToggleFavourite = { viewModel.onToggleFavourite(characterId) },
                 onBack = { navController.popBackStack() }
             )

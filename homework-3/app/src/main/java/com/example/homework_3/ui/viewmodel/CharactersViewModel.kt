@@ -1,16 +1,12 @@
 package com.example.homework_3.ui.viewmodel
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.homework_3.data.CharactersRepository
 import com.example.homework_3.model.Character
 import com.example.homework_3.model.CharacterFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -19,202 +15,216 @@ class CharactersViewModel @Inject constructor(
     private val repository: CharactersRepository
 ) : ViewModel() {
 
-    var uiState by mutableStateOf(CharactersUiState())
-        private set
+    private val queryFlow = MutableStateFlow("")
+    private val filterFlow = MutableStateFlow(CharacterFilter.ALL)
+    private val refreshTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    private var allCharacters by mutableStateOf(emptyList<Character>())
-    private var loadedCharactersById by mutableStateOf(mapOf<String, Character>())
-    private var favoritesItems by mutableStateOf(emptyList<Character>())
-    private var searchJob: Job? = null
+    private val _detailState = MutableStateFlow(DetailState())
+    val detailState: StateFlow<DetailState> = _detailState.asStateFlow()
+
+    private val favouritesFlow: StateFlow<List<Character>> = repository.observeFavorites()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    private val searchFlow: StateFlow<SearchStatus> = combine(
+        queryFlow,
+        refreshTrigger
+    ) { query, _ -> query }
+        .debounce(500)
+        .distinctUntilChanged()
+        .flatMapLatest { query ->
+            flow {
+                if (query.isNotBlank()) {
+                    emit(SearchStatus.Loading)
+                    try {
+                        val results = repository.searchCharacters(query)
+                        emit(SearchStatus.Success(results))
+                    } catch (e: Exception) {
+                        emit(SearchStatus.Error(e.message ?: "Search failed"))
+                    }
+                } else {
+                    emit(SearchStatus.Loading)
+                    try {
+                        val allCharacters = mutableListOf<Character>()
+                        for (page in 1..2) {
+                            allCharacters.addAll(repository.getCharacters(page))
+                        }
+                        emit(SearchStatus.Success(allCharacters))
+                    } catch (e: Exception) {
+                        emit(SearchStatus.Error(e.message ?: "Failed to load characters"))
+                    }
+                }
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = SearchStatus.Idle
+        )
+
+    private val _charactersCache = MutableStateFlow<Map<String, Character>>(emptyMap())
+
+    val uiState: StateFlow<CharactersUiState> = combine(
+        queryFlow,
+        filterFlow,
+        favouritesFlow,
+        searchFlow
+    ) { query, filter, favourites, searchState ->
+        val searchResults = when (searchState) {
+            is SearchStatus.Success -> searchState.items
+            else -> emptyList()
+        }
+
+        val isLoading = searchState is SearchStatus.Loading
+        val errorMessage = (searchState as? SearchStatus.Error)?.message
+
+        val visibleCharacters = when (filter) {
+            CharacterFilter.ALL -> searchResults
+            CharacterFilter.FAVOURITES -> {
+                if (query.isBlank()) {
+                    favourites
+                } else {
+                    favourites.filter { it.name.contains(query, ignoreCase = true) }
+                }
+            }
+        }
+
+        CharactersUiState(
+            query = query,
+            filter = filter,
+            favourites = favourites.map { it.id }.toSet(),
+            visibleCharacters = visibleCharacters,
+            isLoading = isLoading,
+            errorMessage = errorMessage
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = CharactersUiState()
+    )
 
     init {
-        loadCharacters()
-        loadFavorites()
-    }
-
-    private fun loadFavorites() {
         viewModelScope.launch {
-            try {
-                val favs = repository.getFavorites()
-                favoritesItems = favs
-                uiState = uiState.copy(
-                    favourites = favs.map { it.id }.toSet()
-                )
-            } catch (ex: Exception) {
-                uiState = uiState.copy(
-                    errorMessage = "Не удалось загрузить избранное: ${ex.message}"
-                )
+            searchFlow.collect { searchState ->
+                if (searchState is SearchStatus.Success) {
+                    val newCache = _charactersCache.value.toMutableMap()
+                    searchState.items.forEach { character ->
+                        newCache[character.id] = character
+                    }
+                    _charactersCache.value = newCache
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            favouritesFlow.collect { favourites ->
+                val newCache = _charactersCache.value.toMutableMap()
+                favourites.forEach { character ->
+                    newCache[character.id] = character
+                }
+                _charactersCache.value = newCache
             }
         }
     }
 
     fun onQueryChange(query: String) {
-        uiState = uiState.copy(query = query, errorMessage = null)
-
-        searchJob?.cancel()
-        if (query.isNotBlank()) {
-            uiState = uiState.copy(isLoading = true)
-
-            searchJob = viewModelScope.launch {
-                delay(500)
-                if (query == uiState.query) {
-                    performSearch(query)
-                } else {
-                    uiState = uiState.copy(isLoading = false)
-                }
-            }
-        } else {
-            uiState = uiState.copy(isLoading = true)
-            loadCharacters()
-        }
-    }
-
-    private suspend fun performSearch(query: String) {
-        try {
-            val result = repository.searchCharacters(query)
-            allCharacters = result
-            updateCharactersMap(result)
-            uiState = uiState.copy(isLoading = false)
-        } catch (ex: Exception) {
-            uiState = uiState.copy(
-                isLoading = false,
-                errorMessage = "Failed to search: ${ex.message}"
-            )
-        }
+        queryFlow.value = query
     }
 
     fun onFilterChange(filter: CharacterFilter) {
-        uiState = uiState.copy(filter = filter)
+        filterFlow.value = filter
+    }
+
+    fun onRefresh() {
+        viewModelScope.launch {
+            refreshTrigger.emit(Unit)
+        }
     }
 
     fun onToggleFavourite(id: String) {
         viewModelScope.launch {
-            val currentFavs = favoritesItems
-            val currentIds = uiState.favourites
+            val currentFavs = favouritesFlow.value
+            val isFavourite = currentFavs.any { it.id == id }
 
-            if (id in currentIds) {
+            if (isFavourite) {
                 repository.removeFavorite(id)
-                favoritesItems = currentFavs.filterNot { it.id == id }
-                uiState = uiState.copy(favourites = currentIds - id)
             } else {
-                val character = allCharacters.firstOrNull { it.id == id }
-                    ?: loadedCharactersById[id]
-
-                if (character == null) {
-                    uiState = uiState.copy(errorMessage = "Не удалось добавить в избранное")
-                    return@launch
+                val character = _charactersCache.value[id]
+                if (character != null) {
+                    repository.addFavorite(character)
+                } else {
+                    try {
+                        val loaded = repository.getCharacterByUrl("https://swapi.dev/api/people/$id/")
+                        loaded?.let {
+                            repository.addFavorite(it)
+                        }
+                    } catch (e: Exception) {
+                    }
                 }
-
-                repository.addFavorite(character)
-                favoritesItems = listOf(character) + currentFavs
-                uiState = uiState.copy(favourites = currentIds + id)
             }
         }
-    }
-
-    fun loadCharacters() {
-        viewModelScope.launch {
-            uiState = uiState.copy(isLoading = true, errorMessage = null)
-            try {
-                val results = mutableListOf<Character>()
-                for (currentPage in 1..2) {
-                    val pageResult = repository.getCharacters(currentPage)
-                    results.addAll(pageResult)
-                }
-
-                allCharacters = results
-                updateCharactersMap(results)
-                uiState = uiState.copy(isLoading = false)
-            } catch (ex: Exception) {
-                uiState = uiState.copy(
-                    isLoading = false,
-                    errorMessage = "Failed to load characters: ${ex.message}"
-                )
-            }
-        }
-    }
-
-    private fun updateCharactersMap(newCharacters: List<Character>) {
-        val newMap = loadedCharactersById.toMutableMap()
-        newCharacters.forEach { character ->
-            newMap[character.id] = character
-        }
-        loadedCharactersById = newMap
     }
 
     fun loadCharacter(id: String) {
-        val existing = loadedCharactersById[id]
-        if (existing != null) {
-            uiState = uiState.copy(
-                selectedCharacter = existing,
-                isLoadingDetail = false,
-                errorDetail = null
-            )
-            return
-        }
-
         viewModelScope.launch {
-            uiState = uiState.copy(
-                selectedCharacter = null,
-                isLoadingDetail = true,
-                errorDetail = null
-            )
+            _detailState.value = DetailState(isLoading = true)
+
+            val cached = _charactersCache.value[id]
+            if (cached != null) {
+                _detailState.value = DetailState(
+                    character = cached,
+                    isLoading = false,
+                    error = null
+                )
+                return@launch
+            }
 
             try {
                 val character = repository.getCharacterByUrl("https://swapi.dev/api/people/$id/")
                 if (character != null) {
-                    updateCharactersMap(listOf(character))
-                    uiState = uiState.copy(
-                        selectedCharacter = character,
-                        isLoadingDetail = false,
-                        errorDetail = null
+                    val newCache = _charactersCache.value.toMutableMap()
+                    newCache[id] = character
+                    _charactersCache.value = newCache
+
+                    _detailState.value = DetailState(
+                        character = character,
+                        isLoading = false,
+                        error = null
                     )
                 } else {
-                    uiState = uiState.copy(
-                        selectedCharacter = null,
-                        isLoadingDetail = false,
-                        errorDetail = "Character not found"
+                    _detailState.value = DetailState(
+                        character = null,
+                        isLoading = false,
+                        error = "Character not found"
                     )
                 }
-            } catch (ex: Exception) {
-                uiState = uiState.copy(
-                    selectedCharacter = null,
-                    isLoadingDetail = false,
-                    errorDetail = "Failed to load character: ${ex.message}"
+            } catch (e: Exception) {
+                _detailState.value = DetailState(
+                    character = null,
+                    isLoading = false,
+                    error = "Failed to load character: ${e.message}"
                 )
             }
         }
     }
 
     fun clearDetailState() {
-        uiState = uiState.copy(
-            selectedCharacter = null,
-            isLoadingDetail = false,
-            errorDetail = null
-        )
+        _detailState.value = DetailState()
     }
 
-    val visibleCharacters: List<Character>
-        get() {
-            val byQuery = if (uiState.query.isBlank()) {
-                allCharacters
-            } else {
-                allCharacters.filter { character ->
-                    character.name.contains(uiState.query, ignoreCase = true)
-                }
-            }
+    sealed class SearchStatus {
+        data object Idle : SearchStatus()
+        data object Loading : SearchStatus()
+        data class Success(val items: List<Character>) : SearchStatus()
+        data class Error(val message: String) : SearchStatus()
+    }
 
-            return when (uiState.filter) {
-                CharacterFilter.ALL -> byQuery
-                CharacterFilter.FAVOURITES -> {
-                    if (uiState.query.isBlank()) {
-                        favoritesItems
-                    } else {
-                        favoritesItems.filter { fav ->
-                            fav.name.contains(uiState.query, ignoreCase = true)
-                        }
-                    }
-                }
-            }
-        }
+    data class DetailState(
+        val character: Character? = null,
+        val isLoading: Boolean = false,
+        val error: String? = null
+    )
 }
