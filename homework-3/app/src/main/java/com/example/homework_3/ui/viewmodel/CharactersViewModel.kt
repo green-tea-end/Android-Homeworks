@@ -3,6 +3,7 @@ package com.example.homework_3.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.homework_3.data.CharactersRepository
+import com.example.homework_3.data.recent.RecentRepository
 import com.example.homework_3.model.Character
 import com.example.homework_3.model.CharacterFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,7 +13,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CharactersViewModel @Inject constructor(
-    private val repository: CharactersRepository
+    private val repository: CharactersRepository,
+    private val recentRepository: RecentRepository,
 ) : ViewModel() {
 
     private val queryFlow = MutableStateFlow("")
@@ -29,60 +31,47 @@ class CharactersViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    private val searchFlow: StateFlow<SearchStatus> = combine(
-        queryFlow,
-        refreshTrigger
-    ) { query, _ -> query }
-        .debounce(500)
-        .distinctUntilChanged()
-        .flatMapLatest { query ->
-            flow {
-                if (query.isNotBlank()) {
+    private val queryForCacheFlow: StateFlow<String> =
+        queryFlow
+            .debounce(500)
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    private val charactersFromCacheFlow: StateFlow<List<Character>> =
+        queryForCacheFlow
+            .flatMapLatest { query -> repository.observeCharacters(query) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val refreshStateFlow: StateFlow<SearchStatus> =
+        combine(
+            queryForCacheFlow,
+            refreshTrigger.onStart { emit(Unit) }
+        ) { query, _ -> query }
+            .flatMapLatest { query ->
+                flow {
                     emit(SearchStatus.Loading)
                     try {
-                        val results = repository.searchCharacters(query)
-                        emit(SearchStatus.Success(results))
+                        repository.refreshCharacters(query = query, force = true)
+                        emit(SearchStatus.Success)
                     } catch (e: Exception) {
-                        emit(SearchStatus.Error(e.message ?: "Search failed"))
-                    }
-                } else {
-                    emit(SearchStatus.Loading)
-                    try {
-                        val allCharacters = mutableListOf<Character>()
-                        for (page in 1..2) {
-                            allCharacters.addAll(repository.getCharacters(page))
-                        }
-                        emit(SearchStatus.Success(allCharacters))
-                    } catch (e: Exception) {
-                        emit(SearchStatus.Error(e.message ?: "Failed to load characters"))
+                        emit(SearchStatus.Error(mapErrorToMessage(e, fallback = "Failed to refresh")))
                     }
                 }
             }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = SearchStatus.Idle
-        )
-
-    private val _charactersCache = MutableStateFlow<Map<String, Character>>(emptyMap())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SearchStatus.Loading)
 
     val uiState: StateFlow<CharactersUiState> = combine(
         queryFlow,
         filterFlow,
         favouritesFlow,
-        searchFlow
-    ) { query, filter, favourites, searchState ->
-        val searchResults = when (searchState) {
-            is SearchStatus.Success -> searchState.items
-            else -> emptyList()
-        }
-
-        val isLoading = searchState is SearchStatus.Loading
-        val errorMessage = (searchState as? SearchStatus.Error)?.message
+        charactersFromCacheFlow,
+        refreshStateFlow,
+    ) { query, filter, favourites, cachedCharacters, refreshState ->
+        val isLoading = refreshState is SearchStatus.Loading && cachedCharacters.isEmpty()
+        val errorMessage = (refreshState as? SearchStatus.Error)?.message
 
         val visibleCharacters = when (filter) {
-            CharacterFilter.ALL -> searchResults
+            CharacterFilter.ALL -> cachedCharacters
             CharacterFilter.FAVOURITES -> {
                 if (query.isBlank()) {
                     favourites
@@ -98,37 +87,14 @@ class CharactersViewModel @Inject constructor(
             favourites = favourites.map { it.id }.toSet(),
             visibleCharacters = visibleCharacters,
             isLoading = isLoading,
-            errorMessage = errorMessage
+            errorMessage = errorMessage,
+            showEmptyState = refreshState is SearchStatus.Success && visibleCharacters.isEmpty()
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = CharactersUiState()
     )
-
-    init {
-        viewModelScope.launch {
-            searchFlow.collect { searchState ->
-                if (searchState is SearchStatus.Success) {
-                    val newCache = _charactersCache.value.toMutableMap()
-                    searchState.items.forEach { character ->
-                        newCache[character.id] = character
-                    }
-                    _charactersCache.value = newCache
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            favouritesFlow.collect { favourites ->
-                val newCache = _charactersCache.value.toMutableMap()
-                favourites.forEach { character ->
-                    newCache[character.id] = character
-                }
-                _charactersCache.value = newCache
-            }
-        }
-    }
 
     fun onQueryChange(query: String) {
         queryFlow.value = query
@@ -152,73 +118,58 @@ class CharactersViewModel @Inject constructor(
             if (isFavourite) {
                 repository.removeFavorite(id)
             } else {
-                val character = _charactersCache.value[id]
-                if (character != null) {
-                    repository.addFavorite(character)
-                } else {
-                    try {
-                        val loaded = repository.getCharacterByUrl("https://swapi.dev/api/people/$id/")
-                        loaded?.let {
-                            repository.addFavorite(it)
-                        }
-                    } catch (e: Exception) {
-                    }
+                val fromCache = repository.observeCharacter(id).first()
+                if (fromCache != null) {
+                    repository.addFavorite(fromCache)
+                    return@launch
                 }
+
+                runCatching { repository.refreshCharacterById(id, force = true) }
+                repository.observeCharacter(id).first()?.let { repository.addFavorite(it) }
             }
         }
     }
 
+    private var detailJob: kotlinx.coroutines.Job? = null
+
     fun loadCharacter(id: String) {
-        viewModelScope.launch {
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
             _detailState.value = DetailState(isLoading = true)
 
-            val cached = _charactersCache.value[id]
+            val cached = repository.observeCharacter(id).first()
             if (cached != null) {
-                _detailState.value = DetailState(
-                    character = cached,
-                    isLoading = false,
-                    error = null
-                )
-                return@launch
+                _detailState.value = DetailState(character = cached, isLoading = false, error = null)
+                runCatching { recentRepository.addView(cached) }
             }
 
-            try {
-                val character = repository.getCharacterByUrl("https://swapi.dev/api/people/$id/")
-                if (character != null) {
-                    val newCache = _charactersCache.value.toMutableMap()
-                    newCache[id] = character
-                    _charactersCache.value = newCache
-
-                    _detailState.value = DetailState(
-                        character = character,
-                        isLoading = false,
-                        error = null
-                    )
-                } else {
-                    _detailState.value = DetailState(
-                        character = null,
-                        isLoading = false,
-                        error = "Character not found"
-                    )
+            val refreshResult = runCatching { repository.refreshCharacterById(id, force = false) }
+            refreshResult.exceptionOrNull()?.let { e ->
+                if (cached == null) {
+                    _detailState.value = DetailState(character = null, isLoading = false, error = mapErrorToMessage(e, "Failed to load character"))
                 }
-            } catch (e: Exception) {
-                _detailState.value = DetailState(
-                    character = null,
-                    isLoading = false,
-                    error = "Failed to load character: ${e.message}"
-                )
+            }
+
+            repository.observeCharacter(id).collect { updated ->
+                if (updated != null) {
+                    _detailState.value = DetailState(character = updated, isLoading = false, error = null)
+                } else if (cached == null) {
+                    _detailState.value = DetailState(character = null, isLoading = false, error = "Character not found")
+                }
             }
         }
     }
 
     fun clearDetailState() {
         _detailState.value = DetailState()
+        detailJob?.cancel()
+        detailJob = null
     }
 
     sealed class SearchStatus {
         data object Idle : SearchStatus()
         data object Loading : SearchStatus()
-        data class Success(val items: List<Character>) : SearchStatus()
+        data object Success : SearchStatus()
         data class Error(val message: String) : SearchStatus()
     }
 
@@ -227,4 +178,12 @@ class CharactersViewModel @Inject constructor(
         val isLoading: Boolean = false,
         val error: String? = null
     )
+
+    private fun mapErrorToMessage(e: Throwable, fallback: String): String {
+        return when (e) {
+            is java.io.IOException -> "Network error. Check your connection and try again."
+            is retrofit2.HttpException -> "Server error (${e.code()}). Please try again."
+            else -> e.message?.takeIf { it.isNotBlank() } ?: fallback
+        }
+    }
 }

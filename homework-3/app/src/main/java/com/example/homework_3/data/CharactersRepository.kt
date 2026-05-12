@@ -4,8 +4,11 @@ import com.example.homework_3.model.Character
 import kotlinx.coroutines.flow.Flow
 
 interface CharactersRepository {
-    suspend fun getCharacters(page: Int): List<Character>
-    suspend fun searchCharacters(query: String): List<Character>
+    fun observeCharacters(query: String): Flow<List<Character>>
+    fun observeCharacter(id: String): Flow<Character?>
+    suspend fun refreshCharacters(query: String, force: Boolean = false)
+    suspend fun refreshCharacterById(id: String, force: Boolean = false)
+
     suspend fun getCharacterByUrl(url: String): Character?
     suspend fun addFavorite(character: Character)
     suspend fun removeFavorite(id: String)

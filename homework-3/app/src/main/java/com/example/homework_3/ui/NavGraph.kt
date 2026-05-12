@@ -13,10 +13,16 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.homework_3.ui.screen.CharacterDetailScreen
 import com.example.homework_3.ui.screen.CharacterListScreen
+import com.example.homework_3.ui.screen.RecentScreen
+import com.example.homework_3.ui.screen.SettingsScreen
 import com.example.homework_3.ui.viewmodel.CharactersViewModel
+import com.example.homework_3.ui.viewmodel.RecentViewModel
+import com.example.homework_3.ui.viewmodel.SettingsViewModel
 
 sealed class CharactersRoute(val route: String) {
     object List : CharactersRoute("list")
+    object Settings : CharactersRoute("settings")
+    object Recent : CharactersRoute("recent")
     object Detail : CharactersRoute("detail/{characterId}") {
         const val ARG_ID = "characterId"
         fun createRoute(id: String): String = "detail/$id"
@@ -39,7 +45,28 @@ fun NavGraph() {
                 viewModel = viewModel,
                 onCharacterClick = { characterId ->
                     navController.navigate(CharactersRoute.Detail.createRoute(characterId))
-                }
+                },
+                onOpenSettings = { navController.navigate(CharactersRoute.Settings.route) },
+                onOpenRecent = { navController.navigate(CharactersRoute.Recent.route) },
+            )
+        }
+
+        composable(CharactersRoute.Settings.route) {
+            val settingsViewModel: SettingsViewModel = hiltViewModel()
+            SettingsScreen(
+                viewModel = settingsViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(CharactersRoute.Recent.route) {
+            val recentViewModel: RecentViewModel = hiltViewModel()
+            RecentScreen(
+                viewModel = recentViewModel,
+                onOpenCharacter = { characterId ->
+                    navController.navigate(CharactersRoute.Detail.createRoute(characterId))
+                },
+                onBack = { navController.popBackStack() },
             )
         }
 

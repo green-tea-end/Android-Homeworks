@@ -24,24 +24,22 @@ import androidx.compose.ui.unit.dp
 import com.example.homework_3.ui.viewmodel.CharactersViewModel
 import com.example.homework_3.ui.widget.CharacterCard
 import com.example.homework_3.ui.widget.FilterRow
+import androidx.compose.foundation.layout.Row
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CharacterListScreen(
     viewModel: CharactersViewModel,
     onCharacterClick: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenRecent: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Star Wars Characters") },
-                actions = {
-                    Button(onClick = { viewModel.onRefresh() }) {
-                        Text("Refresh")
-                    }
-                }
+                title = { Text("Star Wars Characters") }
             )
         }
     ) { innerPadding ->
@@ -50,6 +48,32 @@ fun CharacterListScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { viewModel.onRefresh() },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Refresh")
+                }
+                Button(
+                    onClick = onOpenRecent,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Recent")
+                }
+                Button(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Settings")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = uiState.query,
                 onValueChange = viewModel::onQueryChange,
@@ -93,7 +117,7 @@ fun CharacterListScreen(
                     }
                 }
 
-                uiState.visibleCharacters.isEmpty() -> {
+                uiState.showEmptyState -> {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
