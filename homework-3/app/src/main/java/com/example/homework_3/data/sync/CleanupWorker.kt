@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.homework_3.data.local.RecentViewDao
+import com.example.homework_3.data.recent.RecentRetentionPolicy
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -17,12 +18,8 @@ class CleanupWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         val now = System.currentTimeMillis()
-        val thirtyDaysMs = 30L * 24L * 60L * 60L * 1000L
-
-        recentViewDao.deleteOlderThan(now - thirtyDaysMs)
-        recentViewDao.trimToLimit(200)
-
+        recentViewDao.deleteOlderThan(now - RecentRetentionPolicy.maxAgeMs)
+        recentViewDao.trimToLimit(RecentRetentionPolicy.MAX_ENTRIES)
         return Result.success()
     }
 }
-

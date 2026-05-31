@@ -6,8 +6,13 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [FavoriteCharacterEntity::class, RecentViewEntity::class, CachedCharacterEntity::class],
-    version = 4,
+    entities = [
+        FavoriteCharacterEntity::class,
+        RecentViewEntity::class,
+        CachedCharacterEntity::class,
+        CharacterQueryCacheMetaEntity::class,
+    ],
+    version = 5,
     exportSchema = false
 )
 abstract class CharacterDatabase : RoomDatabase() {
@@ -15,6 +20,7 @@ abstract class CharacterDatabase : RoomDatabase() {
     abstract fun favoriteCharacterDao(): FavoriteCharacterDao
     abstract fun recentViewDao(): RecentViewDao
     abstract fun cachedCharacterDao(): CachedCharacterDao
+    abstract fun characterQueryCacheMetaDao(): CharacterQueryCacheMetaDao
 
     companion object {
         val MIGRATION_2_3: Migration =
@@ -63,6 +69,21 @@ abstract class CharacterDatabase : RoomDatabase() {
                     )
                     db.execSQL("CREATE INDEX IF NOT EXISTS `index_cached_character_name` ON `cached_character` (`name`)")
                     db.execSQL("CREATE INDEX IF NOT EXISTS `index_cached_character_updatedAt` ON `cached_character` (`updatedAt`)")
+                }
+            }
+
+        val MIGRATION_4_5: Migration =
+            object : Migration(4, 5) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `character_query_cache_meta` (
+                            `queryKey` TEXT NOT NULL,
+                            `refreshedAt` INTEGER NOT NULL,
+                            PRIMARY KEY(`queryKey`)
+                        )
+                        """.trimIndent()
+                    )
                 }
             }
     }

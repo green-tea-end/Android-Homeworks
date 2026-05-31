@@ -7,6 +7,7 @@ import com.example.homework_3.data.recent.RecentRepository
 import com.example.homework_3.model.Character
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
@@ -53,9 +54,9 @@ class CharactersViewModelOfflineFirstTest {
 
         val vm = CharactersViewModel(repository, recentRepository)
 
-        val collectJob = launch { vm.uiState.collect { } }
+        val collectJob = launch { vm.uiState.collect { /* keep active */ } }
         try {
-            advanceTimeBy(600)
+            advanceTimeBy(600) // debounce for queryForCacheFlow
             advanceUntilIdle()
 
             val state = vm.uiState.value

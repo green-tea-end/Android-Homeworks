@@ -20,8 +20,8 @@ interface CachedCharacterDao {
     @Query("SELECT * FROM cached_character WHERE id = :id LIMIT 1")
     fun observeById(id: String): Flow<CachedCharacterEntity?>
 
-    @Query("SELECT MAX(updatedAt) FROM cached_character")
-    suspend fun getMaxUpdatedAt(): Long?
+    @Query("SELECT * FROM cached_character WHERE id IN (:ids)")
+    fun observeByIds(ids: List<String>): Flow<List<CachedCharacterEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<CachedCharacterEntity>)

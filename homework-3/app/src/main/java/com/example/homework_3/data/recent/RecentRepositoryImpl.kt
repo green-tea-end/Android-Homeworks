@@ -24,13 +24,11 @@ class RecentRepositoryImpl @Inject constructor(
             )
         )
 
-        val thirtyDaysMs = 30L * 24L * 60L * 60L * 1000L
-        dao.deleteOlderThan(now - thirtyDaysMs)
-        dao.trimToLimit(200)
+        dao.deleteOlderThan(now - RecentRetentionPolicy.maxAgeMs)
+        dao.trimToLimit(RecentRetentionPolicy.MAX_ENTRIES)
     }
 
     override suspend fun clear() {
         dao.clear()
     }
 }
-

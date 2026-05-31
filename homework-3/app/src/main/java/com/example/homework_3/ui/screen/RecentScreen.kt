@@ -1,7 +1,5 @@
 package com.example.homework_3.ui.screen
 
-import java.text.DateFormat
-import java.util.Date
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,29 +13,25 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.homework_3.data.local.RecentViewEntity
-import com.example.homework_3.ui.viewmodel.RecentViewModel
+import com.example.homework_3.ui.viewmodel.RecentItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecentScreen(
-    viewModel: RecentViewModel,
+    recent: List<RecentItem>,
     onOpenCharacter: (String) -> Unit,
+    onClear: () -> Unit,
     onBack: () -> Unit,
 ) {
-    val recent by viewModel.recent.collectAsState()
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Recent") },
                 navigationIcon = { Button(onClick = onBack) { Text("Back") } },
                 actions = {
-                    Button(onClick = viewModel::clear, enabled = recent.isNotEmpty()) {
+                    Button(onClick = onClear, enabled = recent.isNotEmpty()) {
                         Text("Clear")
                     }
                 }
@@ -67,17 +61,15 @@ fun RecentScreen(
 
 @Composable
 private fun RecentRow(
-    item: RecentViewEntity,
+    item: RecentItem,
     onClick: () -> Unit,
 ) {
-    val formattedTime = DateFormat.getDateTimeInstance().format(Date(item.viewedAt))
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         headlineContent = { Text(item.characterName) },
-        supportingContent = { Text(formattedTime) },
+        supportingContent = { Text(item.viewedAtLabel) },
         trailingContent = { Button(onClick = onClick) { Text("Open") } },
     )
 }
-

@@ -1,6 +1,8 @@
 package com.example.homework_3.data
 
 import com.example.homework_3.data.local.CachedCharacterDao
+import com.example.homework_3.data.local.CharacterQueryCacheMetaDao
+import com.example.homework_3.data.local.CharacterQueryCacheMetaEntity
 import com.example.homework_3.data.local.FavoriteCharacterDao
 import com.example.homework_3.data.local.FavoriteCharacterEntity
 import com.example.homework_3.data.local.toDomain
@@ -12,6 +14,8 @@ import com.example.homework_3.model.Character
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
@@ -26,6 +30,7 @@ class CharactersRepositoryImpl @Inject constructor(
     private val api: SwapiApi,
     private val favoriteDao: FavoriteCharacterDao,
     private val cachedDao: CachedCharacterDao,
+    private val cacheMetaDao: CharacterQueryCacheMetaDao,
     private val settingsRepository: SettingsRepository,
 ) : CharactersRepository {
 
@@ -53,7 +58,7 @@ class CharactersRepositoryImpl @Inject constructor(
 
     override suspend fun refreshCharacters(query: String, force: Boolean) = withContext(Dispatchers.IO) {
         val ttl = currentTtl()
-        if (!force && isCacheFresh(ttl)) return@withContext
+        if (!force && isCacheFresh(query, ttl)) return@withContext
 
         val now = System.currentTimeMillis()
         val results = if (query.isBlank()) {
@@ -67,6 +72,12 @@ class CharactersRepositoryImpl @Inject constructor(
         }
 
         cachedDao.upsertAll(results.map { it.toCachedEntity(updatedAt = now) })
+        cacheMetaDao.upsert(
+            CharacterQueryCacheMetaEntity(
+                queryKey = queryKeyFor(query),
+                refreshedAt = now,
+            )
+        )
     }
 
     override suspend fun refreshCharacterById(id: String, force: Boolean) = withContext(Dispatchers.IO) {
@@ -110,12 +121,21 @@ class CharactersRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getFavorites(): List<Character> = withContext(Dispatchers.IO) {
-        favoriteDao.getAll().map { it.toDomain() }
+        resolveFavorites(favoriteDao.getAll())
     }
 
     override fun observeFavorites(): Flow<List<Character>> {
         return favoriteDao.observeAll()
-            .map { entities -> entities.map { it.toDomain() } }
+            .flatMapLatest { favorites ->
+                if (favorites.isEmpty()) {
+                    flowOf(emptyList())
+                } else {
+                    val ids = favorites.map { it.id }
+                    cachedDao.observeByIds(ids).map { cachedEntities ->
+                        resolveFavorites(favorites, cachedEntities)
+                    }
+                }
+            }
     }
 
     private suspend fun currentTtl(): Duration {
@@ -123,9 +143,21 @@ class CharactersRepositoryImpl @Inject constructor(
         return preset.duration
     }
 
-    private suspend fun isCacheFresh(ttl: Duration): Boolean {
-        val maxUpdatedAt = cachedDao.getMaxUpdatedAt() ?: return false
-        val age = (System.currentTimeMillis() - maxUpdatedAt).milliseconds
+    private suspend fun isCacheFresh(query: String, ttl: Duration): Boolean {
+        val refreshedAt = cacheMetaDao.getRefreshedAt(queryKeyFor(query)) ?: return false
+        val age = (System.currentTimeMillis() - refreshedAt).milliseconds
         return age < ttl
+    }
+
+    private fun queryKeyFor(query: String): String = query.trim().lowercase()
+
+    private fun resolveFavorites(
+        favorites: List<FavoriteCharacterEntity>,
+        cachedEntities: List<com.example.homework_3.data.local.CachedCharacterEntity> = emptyList(),
+    ): List<Character> {
+        val cachedById = cachedEntities.associateBy { it.id }
+        return favorites.map { favorite ->
+            cachedById[favorite.id]?.toDomain() ?: favorite.toDomain()
+        }
     }
 }

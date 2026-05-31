@@ -1,10 +1,15 @@
 package com.example.homework_3.ui.screen
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.RadioButton
@@ -13,34 +18,24 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.homework_3.data.settings.ThemeMode
-import com.example.homework_3.ui.viewmodel.SettingsViewModel
-import androidx.compose.runtime.collectAsState
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.Button
-import androidx.compose.foundation.isSystemInDarkTheme
-import com.example.homework_3.data.settings.CacheTtlPreset
 import com.example.homework_3.data.settings.BackgroundRefreshInterval
-import java.text.DateFormat
-import java.util.Date
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
+import com.example.homework_3.data.settings.CacheTtlPreset
+import com.example.homework_3.data.settings.ThemeMode
+import com.example.homework_3.ui.viewmodel.SettingsUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel,
+    uiState: SettingsUiState,
     onBack: () -> Unit,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    onCacheTtlPresetChange: (CacheTtlPreset) -> Unit,
+    onBackgroundRefreshEnabledChange: (Boolean) -> Unit,
+    onBackgroundRefreshWifiOnlyChange: (Boolean) -> Unit,
+    onBackgroundRefreshIntervalChange: (BackgroundRefreshInterval) -> Unit,
 ) {
-    val themeMode by viewModel.themeMode.collectAsState()
-    val cacheTtlPreset by viewModel.cacheTtlPreset.collectAsState()
-    val isBackgroundRefreshEnabled by viewModel.isBackgroundRefreshEnabled.collectAsState()
-    val isBackgroundRefreshWifiOnly by viewModel.isBackgroundRefreshWifiOnly.collectAsState()
-    val backgroundRefreshInterval by viewModel.backgroundRefreshInterval.collectAsState()
-    val lastBgSuccessAt by viewModel.lastBackgroundRefreshSuccessAt.collectAsState()
     val isSystemDark = isSystemInDarkTheme()
 
     Scaffold(
@@ -65,20 +60,20 @@ fun SettingsScreen(
             ThemeModeOptionRow(
                 title = "System",
                 description = if (isSystemDark) "Follow device (currently Dark)" else "Follow device (currently Light)",
-                selected = themeMode == ThemeMode.SYSTEM,
-                onClick = { viewModel.setThemeMode(ThemeMode.SYSTEM) }
+                selected = uiState.themeMode == ThemeMode.SYSTEM,
+                onClick = { onThemeModeChange(ThemeMode.SYSTEM) }
             )
             ThemeModeOptionRow(
                 title = "Light",
                 description = "Always Light",
-                selected = themeMode == ThemeMode.LIGHT,
-                onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) }
+                selected = uiState.themeMode == ThemeMode.LIGHT,
+                onClick = { onThemeModeChange(ThemeMode.LIGHT) }
             )
             ThemeModeOptionRow(
                 title = "Dark",
                 description = "Always Dark",
-                selected = themeMode == ThemeMode.DARK,
-                onClick = { viewModel.setThemeMode(ThemeMode.DARK) }
+                selected = uiState.themeMode == ThemeMode.DARK,
+                onClick = { onThemeModeChange(ThemeMode.DARK) }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -89,20 +84,20 @@ fun SettingsScreen(
             SettingsOptionRow(
                 title = "1 hour",
                 description = "More network requests, fresher cache",
-                selected = cacheTtlPreset == CacheTtlPreset.ONE_HOUR,
-                onClick = { viewModel.setCacheTtlPreset(CacheTtlPreset.ONE_HOUR) }
+                selected = uiState.cacheTtlPreset == CacheTtlPreset.ONE_HOUR,
+                onClick = { onCacheTtlPresetChange(CacheTtlPreset.ONE_HOUR) }
             )
             SettingsOptionRow(
                 title = "6 hours",
                 description = "Balanced default",
-                selected = cacheTtlPreset == CacheTtlPreset.SIX_HOURS,
-                onClick = { viewModel.setCacheTtlPreset(CacheTtlPreset.SIX_HOURS) }
+                selected = uiState.cacheTtlPreset == CacheTtlPreset.SIX_HOURS,
+                onClick = { onCacheTtlPresetChange(CacheTtlPreset.SIX_HOURS) }
             )
             SettingsOptionRow(
                 title = "24 hours",
                 description = "Fewer requests, cache can be stale",
-                selected = cacheTtlPreset == CacheTtlPreset.TWENTY_FOUR_HOURS,
-                onClick = { viewModel.setCacheTtlPreset(CacheTtlPreset.TWENTY_FOUR_HOURS) }
+                selected = uiState.cacheTtlPreset == CacheTtlPreset.TWENTY_FOUR_HOURS,
+                onClick = { onCacheTtlPresetChange(CacheTtlPreset.TWENTY_FOUR_HOURS) }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -113,16 +108,16 @@ fun SettingsScreen(
             SettingsToggleRow(
                 title = "Enable background refresh",
                 description = "Auto-update cached data when possible",
-                checked = isBackgroundRefreshEnabled,
-                onCheckedChange = viewModel::setBackgroundRefreshEnabled,
+                checked = uiState.isBackgroundRefreshEnabled,
+                onCheckedChange = onBackgroundRefreshEnabledChange,
             )
 
             SettingsToggleRow(
                 title = "Wi‑Fi only",
                 description = "Avoid using mobile data",
-                checked = isBackgroundRefreshWifiOnly,
-                enabled = isBackgroundRefreshEnabled,
-                onCheckedChange = viewModel::setBackgroundRefreshWifiOnly,
+                checked = uiState.isBackgroundRefreshWifiOnly,
+                enabled = uiState.isBackgroundRefreshEnabled,
+                onCheckedChange = onBackgroundRefreshWifiOnlyChange,
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -132,27 +127,24 @@ fun SettingsScreen(
             SettingsOptionRow(
                 title = "6 hours",
                 description = "More frequent updates",
-                selected = backgroundRefreshInterval == BackgroundRefreshInterval.SIX_HOURS,
-                onClick = { viewModel.setBackgroundRefreshInterval(BackgroundRefreshInterval.SIX_HOURS) }
+                selected = uiState.backgroundRefreshInterval == BackgroundRefreshInterval.SIX_HOURS,
+                onClick = { onBackgroundRefreshIntervalChange(BackgroundRefreshInterval.SIX_HOURS) }
             )
             SettingsOptionRow(
                 title = "12 hours",
                 description = "Recommended default",
-                selected = backgroundRefreshInterval == BackgroundRefreshInterval.TWELVE_HOURS,
-                onClick = { viewModel.setBackgroundRefreshInterval(BackgroundRefreshInterval.TWELVE_HOURS) }
+                selected = uiState.backgroundRefreshInterval == BackgroundRefreshInterval.TWELVE_HOURS,
+                onClick = { onBackgroundRefreshIntervalChange(BackgroundRefreshInterval.TWELVE_HOURS) }
             )
             SettingsOptionRow(
                 title = "24 hours",
                 description = "Least frequent updates",
-                selected = backgroundRefreshInterval == BackgroundRefreshInterval.TWENTY_FOUR_HOURS,
-                onClick = { viewModel.setBackgroundRefreshInterval(BackgroundRefreshInterval.TWENTY_FOUR_HOURS) }
+                selected = uiState.backgroundRefreshInterval == BackgroundRefreshInterval.TWENTY_FOUR_HOURS,
+                onClick = { onBackgroundRefreshIntervalChange(BackgroundRefreshInterval.TWENTY_FOUR_HOURS) }
             )
 
             Spacer(modifier = Modifier.height(12.dp))
-            val lastSyncText = lastBgSuccessAt?.let {
-                DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))
-            } ?: "Never"
-            Text("Last successful background refresh: $lastSyncText")
+            Text("Last successful background refresh: ${uiState.lastBackgroundRefreshSuccessLabel}")
         }
     }
 }
@@ -210,4 +202,3 @@ private fun SettingsToggleRow(
         },
     )
 }
-

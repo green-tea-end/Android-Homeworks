@@ -42,7 +42,11 @@ fun NavGraph() {
     ) {
         composable(CharactersRoute.List.route) {
             CharacterListScreen(
-                viewModel = viewModel,
+                uiState = uiState,
+                onQueryChange = viewModel::onQueryChange,
+                onFilterChange = viewModel::onFilterChange,
+                onRefresh = viewModel::onRefresh,
+                onToggleFavourite = viewModel::onToggleFavourite,
                 onCharacterClick = { characterId ->
                     navController.navigate(CharactersRoute.Detail.createRoute(characterId))
                 },
@@ -53,19 +57,27 @@ fun NavGraph() {
 
         composable(CharactersRoute.Settings.route) {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
+            val settingsUiState by settingsViewModel.uiState.collectAsState()
             SettingsScreen(
-                viewModel = settingsViewModel,
+                uiState = settingsUiState,
                 onBack = { navController.popBackStack() },
+                onThemeModeChange = settingsViewModel::setThemeMode,
+                onCacheTtlPresetChange = settingsViewModel::setCacheTtlPreset,
+                onBackgroundRefreshEnabledChange = settingsViewModel::setBackgroundRefreshEnabled,
+                onBackgroundRefreshWifiOnlyChange = settingsViewModel::setBackgroundRefreshWifiOnly,
+                onBackgroundRefreshIntervalChange = settingsViewModel::setBackgroundRefreshInterval,
             )
         }
 
         composable(CharactersRoute.Recent.route) {
             val recentViewModel: RecentViewModel = hiltViewModel()
+            val recent by recentViewModel.recent.collectAsState()
             RecentScreen(
-                viewModel = recentViewModel,
+                recent = recent,
                 onOpenCharacter = { characterId ->
                     navController.navigate(CharactersRoute.Detail.createRoute(characterId))
                 },
+                onClear = recentViewModel::clear,
                 onBack = { navController.popBackStack() },
             )
         }

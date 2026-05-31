@@ -19,7 +19,7 @@ class CharactersViewModel @Inject constructor(
 
     private val queryFlow = MutableStateFlow("")
     private val filterFlow = MutableStateFlow(CharacterFilter.ALL)
-    private val refreshTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val refreshTrigger = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
 
     private val _detailState = MutableStateFlow(DetailState())
     val detailState: StateFlow<DetailState> = _detailState.asStateFlow()
@@ -45,13 +45,13 @@ class CharactersViewModel @Inject constructor(
     private val refreshStateFlow: StateFlow<SearchStatus> =
         combine(
             queryForCacheFlow,
-            refreshTrigger.onStart { emit(Unit) }
-        ) { query, _ -> query }
-            .flatMapLatest { query ->
+            refreshTrigger.onStart { emit(false) }
+        ) { query, force -> query to force }
+            .flatMapLatest { (query, force) ->
                 flow {
                     emit(SearchStatus.Loading)
                     try {
-                        repository.refreshCharacters(query = query, force = true)
+                        repository.refreshCharacters(query = query, force = force)
                         emit(SearchStatus.Success)
                     } catch (e: Exception) {
                         emit(SearchStatus.Error(mapErrorToMessage(e, fallback = "Failed to refresh")))
@@ -106,7 +106,7 @@ class CharactersViewModel @Inject constructor(
 
     fun onRefresh() {
         viewModelScope.launch {
-            refreshTrigger.emit(Unit)
+            refreshTrigger.emit(true)
         }
     }
 

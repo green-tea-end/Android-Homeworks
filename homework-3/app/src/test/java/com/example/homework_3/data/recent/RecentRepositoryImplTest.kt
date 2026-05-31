@@ -25,7 +25,7 @@ class RecentRepositoryImplTest {
 
         coVerify(exactly = 1) { dao.upsert(match { it.characterId == "1" && it.characterName == "Luke" }) }
         coVerify(exactly = 1) { dao.deleteOlderThan(any()) }
-        coVerify(exactly = 1) { dao.trimToLimit(200) }
+        coVerify(exactly = 1) { dao.trimToLimit(RecentRetentionPolicy.MAX_ENTRIES) }
     }
 
     @Test

@@ -23,9 +23,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
-            val themeMode by settingsViewModel.themeMode.collectAsState()
+            val settingsUiState by settingsViewModel.uiState.collectAsState()
 
-            Homework3Theme(themeMode = themeMode) {
+            Homework3Theme(themeMode = settingsUiState.themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     NavGraph()
                 }
