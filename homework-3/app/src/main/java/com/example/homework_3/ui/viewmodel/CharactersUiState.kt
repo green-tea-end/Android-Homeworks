@@ -9,5 +9,6 @@ data class CharactersUiState(
     val favourites: Set<String> = emptySet(),
     val visibleCharacters: List<Character> = emptyList(),
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val showEmptyState: Boolean = false
 )

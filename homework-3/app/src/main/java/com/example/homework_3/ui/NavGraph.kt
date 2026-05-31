@@ -13,10 +13,16 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.homework_3.ui.screen.CharacterDetailScreen
 import com.example.homework_3.ui.screen.CharacterListScreen
+import com.example.homework_3.ui.screen.RecentScreen
+import com.example.homework_3.ui.screen.SettingsScreen
 import com.example.homework_3.ui.viewmodel.CharactersViewModel
+import com.example.homework_3.ui.viewmodel.RecentViewModel
+import com.example.homework_3.ui.viewmodel.SettingsViewModel
 
 sealed class CharactersRoute(val route: String) {
     object List : CharactersRoute("list")
+    object Settings : CharactersRoute("settings")
+    object Recent : CharactersRoute("recent")
     object Detail : CharactersRoute("detail/{characterId}") {
         const val ARG_ID = "characterId"
         fun createRoute(id: String): String = "detail/$id"
@@ -36,10 +42,43 @@ fun NavGraph() {
     ) {
         composable(CharactersRoute.List.route) {
             CharacterListScreen(
-                viewModel = viewModel,
+                uiState = uiState,
+                onQueryChange = viewModel::onQueryChange,
+                onFilterChange = viewModel::onFilterChange,
+                onRefresh = viewModel::onRefresh,
+                onToggleFavourite = viewModel::onToggleFavourite,
                 onCharacterClick = { characterId ->
                     navController.navigate(CharactersRoute.Detail.createRoute(characterId))
-                }
+                },
+                onOpenSettings = { navController.navigate(CharactersRoute.Settings.route) },
+                onOpenRecent = { navController.navigate(CharactersRoute.Recent.route) },
+            )
+        }
+
+        composable(CharactersRoute.Settings.route) {
+            val settingsViewModel: SettingsViewModel = hiltViewModel()
+            val settingsUiState by settingsViewModel.uiState.collectAsState()
+            SettingsScreen(
+                uiState = settingsUiState,
+                onBack = { navController.popBackStack() },
+                onThemeModeChange = settingsViewModel::setThemeMode,
+                onCacheTtlPresetChange = settingsViewModel::setCacheTtlPreset,
+                onBackgroundRefreshEnabledChange = settingsViewModel::setBackgroundRefreshEnabled,
+                onBackgroundRefreshWifiOnlyChange = settingsViewModel::setBackgroundRefreshWifiOnly,
+                onBackgroundRefreshIntervalChange = settingsViewModel::setBackgroundRefreshInterval,
+            )
+        }
+
+        composable(CharactersRoute.Recent.route) {
+            val recentViewModel: RecentViewModel = hiltViewModel()
+            val recent by recentViewModel.recent.collectAsState()
+            RecentScreen(
+                recent = recent,
+                onOpenCharacter = { characterId ->
+                    navController.navigate(CharactersRoute.Detail.createRoute(characterId))
+                },
+                onClear = recentViewModel::clear,
+                onBack = { navController.popBackStack() },
             )
         }
 

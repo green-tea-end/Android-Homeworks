@@ -59,6 +59,7 @@ dependencies {
     androidTestImplementation("androidx.navigation:navigation-testing:2.7.7")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.0")
     debugImplementation("androidx.compose.ui:ui-test-manifest:1.7.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.9.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
@@ -82,7 +83,11 @@ dependencies {
     implementation("com.google.dagger:hilt-android:2.57.1")
     kapt("com.google.dagger:hilt-compiler:2.57.1")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
-//    implementation("androidx.hilt:hilt-work:1.2.0")
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    kapt("androidx.hilt:hilt-compiler:1.2.0")
+
+    // WorkManager
+    implementation("androidx.work:work-runtime-ktx:2.10.4")
 
 
 
@@ -110,4 +115,7 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // DataStore (preferences)
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 }
